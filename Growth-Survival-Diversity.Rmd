@@ -204,8 +204,47 @@ for (sector in levels(spCommunity$marks$PointType)) {
   point_numbers <- as.integer(substring(names(M_sector)[-(1:3)], 3))
   M_plants[point_numbers] <- as.numeric(as.data.frame(M_sector)[2, -(1:3)])
 }
-hist(m_plants)
+hist(M_plants)
 ```
+# Correlation
+
+```{r}
+cor(M_plants, div_plants)
+```
+
+
+# Growth model
+
+The model defines growth as $\ln({Size_{i,t+1}}) = \ln(Size_{i,t}) + \alpha x + \beta Conc_{i,t} + \gamma Div_{i,t} + \epsilon_{i,t}$.
+
+## Parameters
+
+```{r}
+alpha <- 1 / max(spCommunity$x)
+conc <- scale(log(M_plants+1))
+beta <- 1 / max(conc)
+div <- scale(div_plants)
+gamma <- 1 / max(div)
+epsilon <- rnorm(spCommunity$n, 0, .5)
+```
+
+## Simulation
+
+```{r}
+growth <- alpha  * spCommunity$x + beta * conc + gamma * div + epsilon
+hist(growth)
+size_t1 <- spCommunity$marks$PointWeight * growth
+```
+
+## Inference
+
+```{r}
+growth_obs <- log(size_t1 / spCommunity$marks$PointWeight)
+lm_plants <- lm(growth_obs ~ spCommunity$x + conc + div)
+summary(lm_plants)
+
+```
+
 
 
 
