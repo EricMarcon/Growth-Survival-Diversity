@@ -95,23 +95,36 @@ set.seed(973)
 ```
 
 
+# Purpose
+
+This exploratory study is a proof of concept for modeling plant growth and survival with respect to relative concentration and diversity.
+
+A set of plants is simulated in a square area with R [@R].
+Each plant belongs to an economic sector and has a size.
+Each sector is drawn separately.
+Location is generated according to a classical point process, and plant sizes according to a random distribution.
+
+The growth model follows @Audretsch2007.
+Exogenous variables are the plant environment, summarized here by its X coordinate: a positive gradient of growth conditions exists from west to east.
+The local geographic concentration of the sector around each plant [@Lang2014] and the local diversity [@Marcon2014a] of sectors in the neighborhood of each plant are the variables of interest.
+
 # Data generation
 
 ## Point set
 
-Plants are simulated in a square window 
+Plants are simulated in a square window by the *Spatdiv* package.
 
 ```{r}
 library("SpatDiv")
 # Geometry of the window
-window_size <- 20000
+window_size <- 2000 # Small during development
 unit_name <- c("meter", "meters")
 # Density
 plants_n_per_area <- 100/1E6
 # Number of sectors
-sectors_n <- 20
+sectors_n <- 5
 # Spatial concentration of plants
-thomas_scale <- window_size/10
+thomas_scale <- window_size/3
 thomas_mu <- 100
 ```
 
@@ -133,12 +146,15 @@ spCommunity$n
 summary(spCommunity$marks$PointType)
 # Sizes
 hist(spCommunity$marks$PointWeight)
+# Map
+autoplot(spCommunity)
 ```
 
 ## Parameters
 
 ```{r}
-n_simulations <- 10
+# Number of simulations to compute confindence envelopes
+n_simulations <- 10 # Small during development
 ```
 
 
@@ -150,21 +166,24 @@ Accumulation.
 # Average distance between plants
 dist_neighbor <- 1 / sqrt(plants_n_per_area)
 # Accumulation of diversity with confidence interval (not run)
-# accum <- DivAccum(
-#   spCommunity, 
-#   r.seq = c(
-#     0, 
-#     seq(
-#       from = dist_neighbor / 4, 
-#       to = dist_neighbor * 4, 
-#       by = dist_neighbor / 4
-#     )
-#   ),
-#   q.seq = 0:2, 
-#   H0 = "RandomLocation", 
-#   NumberOfSimulations = n_simulations,
-#   Individual = TRUE
-# )
+accum <- DivAccum(
+  spCommunity,
+  r.seq = c(
+    0,
+    seq(
+      from = dist_neighbor / 4,
+      to = dist_neighbor * 4,
+      by = dist_neighbor / 4
+    )
+  ),
+  q.seq = 0:2,
+  H0 = "RandomLocation",
+  NumberOfSimulations = n_simulations,
+  Individual = TRUE
+)
+autoplot(accum)
+# Map the local diversity (richness at 4 x dist to neighbor)
+MapPlot(accum, Order = 0, NeighborHood = dist_neighbor * 4)
 # Diversity at 4 times the average distance to neighbor 
 accum_5 <- DivAccum(
   spCommunity, 
@@ -172,6 +191,7 @@ accum_5 <- DivAccum(
   q.seq = 0:2, 
   Individual = TRUE
 )
+# Extract the data [order, distance, points]
 div_plants <- accum_5$Neighborhoods[1, 2, ]
 # Distribution of richness
 hist(div_plants)
@@ -179,7 +199,7 @@ hist(div_plants)
 
 # Concentration
 
-Spatial concentration of sectors
+Spatial concentration of sectors.
 
 ```{r}
 # Compute individual M
@@ -199,6 +219,8 @@ for (sector in levels(spCommunity$marks$PointType)) {
 hist(M_plants)
 ```
 # Correlation
+
+Check the absence of correlation between concentration and diversity.
 
 ```{r}
 cor(M_plants, div_plants)
@@ -222,6 +244,8 @@ epsilon <- rnorm(spCommunity$n, 0, .5)
 
 ## Simulation
 
+Simulate growth.
+
 ```{r}
 growth <- alpha  * spCommunity$x + beta * conc + gamma * div + epsilon
 hist(growth)
@@ -229,6 +253,8 @@ size_t1 <- spCommunity$marks$PointWeight * exp(growth)
 ```
 
 ## Inference
+
+Check that parameters can be inferered from the data.
 
 ```{r}
 growth_obs <- log(size_t1 / spCommunity$marks$PointWeight)
