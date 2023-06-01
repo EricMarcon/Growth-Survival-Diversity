@@ -47,15 +47,7 @@ InstallPackages <- function(Packages) {
 }
 
 # Basic packages
-InstallPackages(c("bookdown", "formatR", "kableExtra", "ragg"))
-
-# kableExtra must be loaded 
-if (knitr::opts_knit$get("rmarkdown.pandoc.to") == "docx") {
-  # Word output (https://stackoverflow.com/questions/35144130/in-knitr-how-can-i-test-for-if-the-output-will-be-pdf-or-word)
-  # Do not use autoformat (https://github.com/haozhu233/kableExtra/issues/308)
-  options(kableExtra.auto_format = FALSE)
-}
-library("kableExtra")
+InstallPackages(c("bookdown", "formatR", "ragg"))
 
 # Chunk font size hook: allows size='small' or any valid Latex font size in chunk options
 def.chunk.hook  <- knitr::knit_hooks$get("chunk")
@@ -233,7 +225,7 @@ epsilon <- rnorm(spCommunity$n, 0, .5)
 ```{r}
 growth <- alpha  * spCommunity$x + beta * conc + gamma * div + epsilon
 hist(growth)
-size_t1 <- spCommunity$marks$PointWeight * growth
+size_t1 <- spCommunity$marks$PointWeight * exp(growth)
 ```
 
 ## Inference
