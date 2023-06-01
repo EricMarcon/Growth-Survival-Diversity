@@ -34,7 +34,7 @@ jobs:
         shell: Rscript {0}
       - name: GH Pages Theme
         run: |
-          echo 'theme: jekyll-theme-slate' > docs/_config.yml
+          echo 'remote_theme: pages-themes/slate@v0.2.0' > docs/_config.yml
       - name: Upload artifact
         uses: actions/upload-artifact@v3
         with:
