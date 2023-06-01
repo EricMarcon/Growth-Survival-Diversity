@@ -25,6 +25,8 @@ jobs:
           tinytex::install_tinytex()
         shell: Rscript {0}
       - name: Render Rmarkdown files
+        env:
+          GITHUB_PAT: ${{ secrets.GH_PAT }}
         run: |
           Sys.setlocale("LC_TIME", "en_US")
           lapply(list.files(pattern="*.Rmd"), function(file) rmarkdown::render(file, "all"))
