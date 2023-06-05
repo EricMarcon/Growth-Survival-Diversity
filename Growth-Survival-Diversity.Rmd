@@ -3,6 +3,7 @@ title: "Growth, Survival, Diversity and Concentration"
 author:
   - name: "Eric Marcon"
   - name: "Florence Puech"
+  - name: "Stuart Sweeney"
 abstract: >
   Exploratory model of growth and survival depending on Diversity and concentration.
 date: "`r format(Sys.time(), '%d %B %Y')`"
@@ -107,6 +108,9 @@ Location is generated according to a classical point process, and plant sizes ac
 The growth model follows @Audretsch2007.
 Exogenous variables are the plant environment, summarized here by its X coordinate: a positive gradient of growth conditions exists from west to east.
 The local geographic concentration of the sector around each plant [@Lang2014] and the local diversity [@Marcon2014a] of sectors in the neighborhood of each plant are the variables of interest.
+
+The survival model is similar.
+Exogenous variables are summarized by the Y coordinate.
 
 # Data generation
 
@@ -220,7 +224,8 @@ hist(M_plants)
 ```
 # Correlation
 
-Check the absence of correlation between concentration and diversity.
+Higher concentration implies lower diversity, which may be an issue to disentangle their effects.
+Yet, it appears that the correlation remains very low at realistic levels of concentration.
 
 ```{r}
 cor(M_plants, div_plants)
@@ -229,17 +234,18 @@ cor(M_plants, div_plants)
 
 # Growth model
 
-The model defines growth as $\ln({Size_{i,t+1}}) = \ln(Size_{i,t}) + \alpha x + \beta Conc_{i,t} + \gamma Div_{i,t} + \epsilon_{i,t}$.
+The model defines growth as 
+$$\ln({Size_{i,t+1}}) = \ln(Size_{i,t}) + \alpha_g x + \beta_g Conc_{i,t} + \gamma_g Div_{i,t} + \epsilon^g_{i,t}.$$
 
 ## Parameters
 
 ```{r}
-alpha <- 1 / max(spCommunity$x)
+alpha_g <- 1 / max(spCommunity$x)
 conc <- scale(log(M_plants+1))
-beta <- 1 / max(conc)
+beta_g <- 1 / max(conc)
 div <- scale(div_plants)
-gamma <- 1 / max(div)
-epsilon <- rnorm(spCommunity$n, 0, .5)
+gamma_g <- 1 / max(div)
+epsilon_g <- rnorm(spCommunity$n, 0, .5)
 ```
 
 ## Simulation
@@ -247,7 +253,7 @@ epsilon <- rnorm(spCommunity$n, 0, .5)
 Simulate growth.
 
 ```{r}
-growth <- alpha  * spCommunity$x + beta * conc + gamma * div + epsilon
+growth <- alpha_g  * spCommunity$x + beta_g * conc + gamma_g * div + epsilon_g
 hist(growth)
 size_t1 <- spCommunity$marks$PointWeight * exp(growth)
 ```
@@ -258,11 +264,56 @@ Check that parameters can be inferered from the data.
 
 ```{r}
 growth_obs <- log(size_t1 / spCommunity$marks$PointWeight)
-lm_plants <- lm(growth_obs ~ spCommunity$x + conc + div)
-summary(lm_plants)
-
+lm_growth <- lm(growth_obs ~ spCommunity$x + conc + div)
+summary(lm_growth)
 ```
 
+
+# Survival model
+
+A model similar to that of growth makes the log-odds of survival  
+$$\mathrm{logit}({p_{i,t+1}}) = \alpha_s y + \beta_s Conc_{i,t} + \gamma_s Div_{i,t} + \epsilon^s_{i,t}.$$
+
+## Parameters
+
+```{r}
+alpha_s <- 10 / max(spCommunity$y)
+beta_s <-  0
+gamma_s <- 1
+epsilon_s <- rnorm(spCommunity$n, 0, .5)
+```
+
+## Simulation
+
+Simulate survival
+
+```{r}
+survival_logit <- alpha_s  * spCommunity$x + beta_s * conc + gamma_s * div + epsilon_s
+# Inv-logit function
+survival_p <- 1 / (1 + exp(-survival_logit))
+hist(survival_p)
+# Draw survival
+survival_obs <- rbinom(spCommunity$n, 1, survival_p)
+# Mortality
+1 - sum(survival_obs) / spCommunity$n
+```
+
+## Inference
+
+Check that parameters can be inferred from the data.
+
+```{r}
+survival_obs <- log(size_t1 / spCommunity$marks$PointWeight)
+glm_survival <- glm(survival_obs ~ spCommunity$y + conc + div)
+summary(glm_survival, family = "binomial")
+```
+
+# Conclusion
+
+These simulations show that both local concentration and diversity may influence plant growth and survival.
+We provide methods to compute their values and estimate their effect.
+
+The application of this proof of concept to the real world requires characterizing pertinent exogenous variables (here summarized by the X and Y coordinates) and neighborhood sizes (here arbitrarily set to 1/10 of the window's size).
 
 
 
