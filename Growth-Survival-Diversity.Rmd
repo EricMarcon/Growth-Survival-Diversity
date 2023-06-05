@@ -79,7 +79,7 @@ knitr::opts_chunk$set(
   # Graphic devices (ragg_png is better than standard png)
   dev = c("ragg_png", "pdf"),
   # Code chunk format
-  tidy = TRUE, tidy.opts = list(blank=FALSE, width.cutoff=50),
+  tidy = FALSE, tidy.opts = list(blank=FALSE, width.cutoff=50),
   size = "scriptsize", knitr.graphics.auto_pdf = TRUE
   )
 options(width = 50)
@@ -153,12 +153,6 @@ rSpCommunity(
   # Window
   win = square(r = window_size, unitname = unit_name)
 ) -> spCommunity
-# Number of plants
-spCommunity$n
-# Per sector
-summary(spCommunity$marks$PointType)
-# Sizes
-hist(spCommunity$marks$PointWeight)
 # Map
 autoplot(spCommunity)
 ```
@@ -176,6 +170,12 @@ marks(spPoisson) <- data.frame(
 # Merge 
 spCommunity <- superimpose(spCommunity, spPoisson)
 autoplot(spCommunity)
+# Number of plants
+spCommunity$n
+# Per sector
+summary(spCommunity$marks$PointType)
+# Sizes
+hist(spCommunity$marks$PointWeight)
 ```
 
 
@@ -344,7 +344,7 @@ growth_kriged <- autoKrige(
   input_data = growth_sdf,
   new_data = grid_xy
 )
-plot(growth_kriged)
+automapPlot(growth_kriged$krige_output, "var1.pred")
 ```
 Compare with the map of diversity.
 
@@ -407,6 +407,7 @@ text(
   labels = c("intercept", "alpha", "beta", "gamma")
 )
 ```
+
 ## Map survival
 
 ```{r}
@@ -415,7 +416,7 @@ survival_sdf <- SpatialPointsDataFrame(
   coords = data.frame(
     x = spCommunity$x,
     y = spCommunity$y), 
-  data = data.frame(Survival = survival_obs)
+  data = data.frame(Survival = glm_survival$fitted.values)
 )
 # Map it
 survival_kriged <- autoKrige(
@@ -423,7 +424,7 @@ survival_kriged <- autoKrige(
   input_data = survival_sdf,
   new_data = grid_xy
 )
-plot(survival_kriged)
+automapPlot(survival_kriged$krige_output, "var1.pred")
 ```
 
 Survival is mainly driven by the northern positive gradient.
