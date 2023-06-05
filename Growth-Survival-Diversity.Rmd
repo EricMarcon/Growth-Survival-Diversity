@@ -112,6 +112,7 @@ The local geographic concentration of the sector around each plant [@Lang2014] a
 The survival model is similar.
 Exogenous variables are summarized by the Y coordinate.
 
+
 # Data generation
 
 ## Point set
@@ -128,20 +129,28 @@ plants_n_per_area <- 100/1E6
 # Number of sectors
 sectors_n <- 5
 # Spatial concentration of plants
-thomas_scale <- window_size/3
+# Cluster size
+thomas_scale <- window_size / 3
+# Number of plants per cluster
 thomas_mu <- 100
 ```
 
-The community is simulated:
+The community is simulated: first, a set of clustered sector.
 
 ```{r}
 library("spatstat")
 rSpCommunity(
+  # A single community
   n = 1, 
+  # Number of plants
   size = window_size^2 * plants_n_per_area, 
+  # Number of sectors
   S = sectors_n, 
+  # Spatial structure
   Spatial = "Thomas", scale = thomas_scale, mu = thomas_mu,
+  # Distribution of plant sizes
   Sizes = "Weibull",
+  # Window
   win = square(r = window_size, unitname = unit_name)
 ) -> spCommunity
 # Number of plants
@@ -153,6 +162,22 @@ hist(spCommunity$marks$PointWeight)
 # Map
 autoplot(spCommunity)
 ```
+
+Then, a sector with no relative concentration, i.e distributed as a Poisson process with density equal to that of existing points.
+
+```{r}
+# Simulate the point set. 
+# ToDo: implement Spatial="Poisson" in SpatDiv::rspCommunity()
+spPoisson <- rpoispp(density(spCommunity)/5)
+marks(spPoisson) <- data.frame(
+  PointWeight = rweibull(spPoisson$n, shape = 2, scale = 20),
+  PointType = "spPoisson"
+)
+# Merge 
+spCommunity <- superimpose(spCommunity, spPoisson)
+autoplot(spCommunity)
+```
+
 
 ## Parameters
 
@@ -239,13 +264,23 @@ $$\ln({Size_{i,t+1}}) = \ln(Size_{i,t}) + \alpha_g x + \beta_g Conc_{i,t} + \gam
 
 ## Parameters
 
+Parameters are chosen to obtain similar effects of all factors.
+Concentration and diversity are standardized.
+
 ```{r}
+# x effect between 0 and 1: gradient from west to east
 alpha_g <- 1 / max(spCommunity$x)
+# Standardize concentration
 conc <- scale(log(M_plants+1))
+# Concentration effect between -1 and +1 for 1 sd dipersion
 beta_g <- 1 / max(conc)
+# Standardize diversity
 div <- scale(div_plants)
+# Diversity effect similar to that of concentration
 gamma_g <- 1 / max(div)
+# Vector of coefficients for future use
 coefficients_g_actual <- c(0, alpha_g, beta_g, gamma_g)
+# Error term
 epsilon_g <- rnorm(spCommunity$n, 0, .5)
 ```
 
@@ -255,7 +290,9 @@ Simulate growth.
 
 ```{r}
 growth <- alpha_g  * spCommunity$x + beta_g * conc + gamma_g * div + epsilon_g
+# Growth if the log ratio of sizes
 hist(growth)
+# Calculate Sizes at t+1
 size_t1 <- spCommunity$marks$PointWeight * exp(growth)
 ```
 
@@ -264,10 +301,12 @@ size_t1 <- spCommunity$marks$PointWeight * exp(growth)
 Check that parameters can be inferered from the data.
 
 ```{r}
+# Observed growth
 growth_obs <- log(size_t1 / spCommunity$marks$PointWeight)
+# Estimate the model
 lm_growth <- lm(growth_obs ~ spCommunity$x + conc + div)
 summary(lm_growth)
-
+# Compare actual and estimated coefficients
 plot(x = coefficients_g_actual, y = lm_growth$coefficients)
 segments(
   x0 = coefficients_g_actual, 
@@ -282,6 +321,32 @@ text(
 )
 ```
 
+## Map growth
+
+```{r}
+library("sp")
+# Create a SpatialPointsDataFrame with x, y and growth
+growth_sdf <- SpatialPointsDataFrame(
+  coords = data.frame(
+    x = spCommunity$x,
+    y = spCommunity$y), 
+  data = data.frame(Growth = growth_obs)
+)
+# Grid for krigeing
+xy <- gridcentres(spCommunity, 256, 256)
+# Format
+grid_xy <- SpatialPoints(cbind(xy$x, xy$y))
+gridded(grid_xy) <- TRUE
+# Map it
+library("automap")
+growth_kriged <- autoKrige(
+  formula = Growth ~ 1, 
+  input_data = growth_sdf,
+  new_data = grid_xy
+)
+plot(growth_kriged)
+```
+Compare with the map of diversity.
 
 # Survival model
 
@@ -291,10 +356,15 @@ $$\mathrm{logit}({p_{i,t+1}}) = \alpha_s y + \beta_s Conc_{i,t} + \gamma_s Div_{
 ## Parameters
 
 ```{r}
+# Gradient of suvival from south to north
 alpha_s <- 10 / max(spCommunity$y)
-beta_s <-  0
+# Negative effect of concentration, e.g. due to competition
+beta_s <-  -1
+# Positive effect of diversity
 gamma_s <- 1
+# Vector of parameters
 coefficients_s_actual <- c(0, alpha_s, beta_s, gamma_s)
+# Error term
 epsilon_s <- rnorm(spCommunity$n, 0, .5)
 ```
 
@@ -303,14 +373,15 @@ epsilon_s <- rnorm(spCommunity$n, 0, .5)
 Simulate survival
 
 ```{r}
+# Log-odds of survival
 survival_logit <- alpha_s * spCommunity$y + beta_s * conc + gamma_s * div + epsilon_s
 hist(survival_logit)
-# Inv-logit function
+# Inv-logit function: survival probability
 survival_p <- 1 / (1 + exp(-survival_logit))
 hist(survival_p)
 # Draw survival
 survival_obs <- rbinom(spCommunity$n, 1, survival_p)
-# Mortality
+# Observed mortality
 1 - sum(survival_obs) / spCommunity$n
 ```
 
@@ -319,8 +390,10 @@ survival_obs <- rbinom(spCommunity$n, 1, survival_p)
 Check that parameters can be inferred from the data.
 
 ```{r}
+# GLM to estimate the logit model
 glm_survival <- glm(survival_obs ~ spCommunity$y + conc + div, family = "binomial")
 summary(glm_survival)
+# Compare actual and estimated coefficients
 plot(x = coefficients_s_actual, y = glm_survival$coefficients)
 segments(
   x0 = coefficients_s_actual, 
@@ -334,6 +407,27 @@ text(
   labels = c("intercept", "alpha", "beta", "gamma")
 )
 ```
+## Map survival
+
+```{r}
+# Create a SpatialPointsDataFrame with x, y and survival
+survival_sdf <- SpatialPointsDataFrame(
+  coords = data.frame(
+    x = spCommunity$x,
+    y = spCommunity$y), 
+  data = data.frame(Survival = survival_obs)
+)
+# Map it
+survival_kriged <- autoKrige(
+  formula = Survival ~ 1, 
+  input_data = survival_sdf,
+  new_data = grid_xy
+)
+plot(survival_kriged)
+```
+
+Survival is mainly driven by the northern positive gradient.
+
 
 # Conclusion
 
