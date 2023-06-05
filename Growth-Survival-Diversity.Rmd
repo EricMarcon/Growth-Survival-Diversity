@@ -157,7 +157,7 @@ autoplot(spCommunity)
 ## Parameters
 
 ```{r}
-# Number of simulations to compute confindence envelopes
+# Number of simulations to compute confidence envelopes
 n_simulations <- 10 # Small during development
 ```
 
@@ -245,6 +245,7 @@ conc <- scale(log(M_plants+1))
 beta_g <- 1 / max(conc)
 div <- scale(div_plants)
 gamma_g <- 1 / max(div)
+coefficients_g_actual <- c(0, alpha_g, beta_g, gamma_g)
 epsilon_g <- rnorm(spCommunity$n, 0, .5)
 ```
 
@@ -266,6 +267,19 @@ Check that parameters can be inferered from the data.
 growth_obs <- log(size_t1 / spCommunity$marks$PointWeight)
 lm_growth <- lm(growth_obs ~ spCommunity$x + conc + div)
 summary(lm_growth)
+
+plot(x = coefficients_g_actual, y = lm_growth$coefficients)
+segments(
+  x0 = coefficients_g_actual, 
+  y0 = lm_growth$coefficients - summary(lm_growth)$coefficients[, 2],
+  y1 = lm_growth$coefficients + summary(lm_growth)$coefficients[, 2]
+)
+abline(a = 0, b = 1, col = "red")
+text(
+  x = coefficients_g_actual,
+  y = lm_growth$coefficients + .02,
+  labels = c("intercept", "alpha", "beta", "gamma")
+)
 ```
 
 
@@ -280,6 +294,7 @@ $$\mathrm{logit}({p_{i,t+1}}) = \alpha_s y + \beta_s Conc_{i,t} + \gamma_s Div_{
 alpha_s <- 10 / max(spCommunity$y)
 beta_s <-  0
 gamma_s <- 1
+coefficients_s_actual <- c(0, alpha_s, beta_s, gamma_s)
 epsilon_s <- rnorm(spCommunity$n, 0, .5)
 ```
 
@@ -288,7 +303,8 @@ epsilon_s <- rnorm(spCommunity$n, 0, .5)
 Simulate survival
 
 ```{r}
-survival_logit <- alpha_s  * spCommunity$x + beta_s * conc + gamma_s * div + epsilon_s
+survival_logit <- alpha_s * spCommunity$y + beta_s * conc + gamma_s * div + epsilon_s
+hist(survival_logit)
 # Inv-logit function
 survival_p <- 1 / (1 + exp(-survival_logit))
 hist(survival_p)
@@ -303,9 +319,20 @@ survival_obs <- rbinom(spCommunity$n, 1, survival_p)
 Check that parameters can be inferred from the data.
 
 ```{r}
-survival_obs <- log(size_t1 / spCommunity$marks$PointWeight)
-glm_survival <- glm(survival_obs ~ spCommunity$y + conc + div)
-summary(glm_survival, family = "binomial")
+glm_survival <- glm(survival_obs ~ spCommunity$y + conc + div, family = "binomial")
+summary(glm_survival)
+plot(x = coefficients_s_actual, y = glm_survival$coefficients)
+segments(
+  x0 = coefficients_s_actual, 
+  y0 = glm_survival$coefficients - summary(glm_survival)$coefficients[, 2],
+  y1 = glm_survival$coefficients + summary(glm_survival)$coefficients[, 2]
+)
+abline(a = 0, b = 1, col = "red")
+text(
+  x = coefficients_s_actual,
+  y = glm_survival$coefficients + .02,
+  labels = c("intercept", "alpha", "beta", "gamma")
+)
 ```
 
 # Conclusion
@@ -313,8 +340,7 @@ summary(glm_survival, family = "binomial")
 These simulations show that both local concentration and diversity may influence plant growth and survival.
 We provide methods to compute their values and estimate their effect.
 
-The application of this proof of concept to the real world requires characterizing pertinent exogenous variables (here summarized by the X and Y coordinates) and neighborhood sizes (here arbitrarily set to 1/10 of the window's size).
-
+The application of this proof of concept to the real world requires characterizing pertinent exogenous variables (here summarized by the X and Y coordinates) and neighborhood sizes (here arbitrarily set to 1/10 of the window's size for concentration and 4 times the average distance between plants for diversity).
 
 
 `r if (!knitr:::is_latex_output()) '# References {-}'`
